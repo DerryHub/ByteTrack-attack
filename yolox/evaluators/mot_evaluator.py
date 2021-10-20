@@ -121,14 +121,15 @@ class MOTEvaluator:
             model_trt = TRTModule()
             model_trt.load_state_dict(torch.load(trt_file))
 
-            x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
-            model(x)
+            # x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
+            # model(x)
             model = model_trt
             
-        tracker = BYTETracker(self.args)
+        # tracker = BYTETracker(self.args, model=model, decoder=decoder)
+        tracker = None
         ori_thresh = self.args.track_thresh
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
-            progress_bar(self.dataloader)
+            self.dataloader
         ):
             with torch.no_grad():
                 # init tracker
@@ -162,7 +163,7 @@ class MOTEvaluator:
                 if video_name not in video_names:
                     video_names[video_id] = video_name
                 if frame_id == 1:
-                    tracker = BYTETracker(self.args)
+                    tracker = BYTETracker(self.args, self.num_classes, self.confthre, self.nmsthre, self.convert_to_coco_format, model=model, decoder=decoder)
                     if len(results) != 0:
                         result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id - 1]))
                         write_results(result_filename, results)
@@ -174,22 +175,29 @@ class MOTEvaluator:
                 is_time_record = cur_iter < len(self.dataloader) - 1
                 if is_time_record:
                     start = time.time()
-
-                outputs = model(imgs)
-                if decoder is not None:
-                    outputs = decoder(outputs, dtype=outputs.type())
-
-                outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
-            
-                if is_time_record:
-                    infer_end = time_synchronized()
-                    inference_time += infer_end - start
-
-            output_results = self.convert_to_coco_format(outputs, info_imgs, ids)
-            data_list.extend(output_results)
+            if frame_id % 20 == 0:
+                print(frame_id)
+            #     outputs = model(imgs)
+            #     if decoder is not None:
+            #         outputs = decoder(outputs, dtype=outputs.type())
+            #
+            #     outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
+            #
+            #     if is_time_record:
+            #         infer_end = time_synchronized()
+            #         inference_time += infer_end - start
+            #
+            # output_results = self.convert_to_coco_format(outputs, info_imgs, ids)
+            # data_list.extend(output_results)
 
             # run tracking
-            online_targets = tracker.update(outputs[0], info_imgs, self.img_size)
+            if self.args.attack:
+                online_targets = tracker.update_attack_sg(imgs, info_imgs, self.img_size, data_list, ids)
+            else:
+                online_targets = tracker.update(imgs, info_imgs, self.img_size, data_list, ids)
+            if is_time_record:
+                infer_end = time_synchronized()
+                inference_time += infer_end - start
             online_tlwhs = []
             online_ids = []
             online_scores = []

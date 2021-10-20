@@ -107,6 +107,8 @@ def make_parser():
     parser.add_argument("--match_thresh", type=float, default=0.9, help="matching threshold for tracking")
     parser.add_argument("--min-box-area", type=float, default=100, help='filter out tiny boxes')
     parser.add_argument("--mot20", dest="mot20", default=False, action="store_true", help="test mot20.")
+    # attack
+    parser.add_argument("--attack", action="store_true", default=False)
     return parser
 
 
@@ -173,7 +175,6 @@ def main(exp, args, num_gpu):
         nmsthre=exp.nmsthre,
         num_classes=exp.num_classes,
         )
-
     torch.cuda.set_device(rank)
     model.cuda(rank)
     model.eval()

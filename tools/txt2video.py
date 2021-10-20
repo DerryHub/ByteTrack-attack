@@ -106,26 +106,26 @@ def txt2img(visual_path="visual_val_gt"):
         os.makedirs(visual_path)
     color_list = colormap()
 
-    gt_json_path = 'datasets/mot/annotations/val_half.json'
+    gt_json_path = 'datasets/mot/annotations/train.json'
     img_path = 'datasets/mot/train/'
-    show_video_names = ['MOT17-02-FRCNN', 
-                    'MOT17-04-FRCNN',
-                    'MOT17-05-FRCNN',
-                    'MOT17-09-FRCNN',
-                    'MOT17-10-FRCNN',        
-                    'MOT17-11-FRCNN',
-                    'MOT17-13-FRCNN']
+    show_video_names = ['MOT17-02-FRCNN']
+                    # 'MOT17-04-FRCNN',
+                    # 'MOT17-05-FRCNN',
+                    # 'MOT17-09-FRCNN',
+                    # 'MOT17-10-FRCNN',
+                    # 'MOT17-11-FRCNN',
+                    # 'MOT17-13-FRCNN']
 
 
-    test_json_path = 'datasets/mot/annotations/test.json'
-    test_img_path = 'datasets/mot/test/'
-    test_show_video_names = ['MOT17-01-FRCNN', 
-                    'MOT17-03-FRCNN',
-                    'MOT17-06-FRCNN',
-                    'MOT17-07-FRCNN',
-                    'MOT17-08-FRCNN',        
-                    'MOT17-12-FRCNN',
-                    'MOT17-14-FRCNN']
+    test_json_path = 'datasets/mot/annotations/train.json'
+    test_img_path = 'datasets/mot/train/'
+    test_show_video_names = ['MOT17-02-FRCNN']
+                    # 'MOT17-04-FRCNN',
+                    # 'MOT17-05-FRCNN',
+                    # 'MOT17-09-FRCNN',
+                    # 'MOT17-10-FRCNN',
+                    # 'MOT17-11-FRCNN',
+                    # 'MOT17-13-FRCNN']
     if visual_path == "visual_test_predict":
         show_video_names = test_show_video_names
         img_path = test_img_path
@@ -139,6 +139,8 @@ def txt2img(visual_path="visual_val_gt"):
             txt_path = 'YOLOX_outputs/yolox_mot_x_1088/track_results/'+ show_video_name + '.txt'
         elif visual_path == "visual_test_predict":
             txt_path = 'test/tracks/'+ show_video_name + '.txt'
+        elif visual_path == 'yolox_x_mix_det':
+            txt_path = 'YOLOX_outputs/yolox_x_mix_det/track_results/' + show_video_name + '.txt'
         else:
             raise NotImplementedError
         
@@ -204,7 +206,7 @@ def img2video(visual_path="visual_val_gt"):
 
 
 if __name__ == '__main__':
-    visual_path="visual_yolox_x"
+    visual_path="yolox_x_mix_det"
     if len(sys.argv) > 1:
         visual_path =sys.argv[1]
     txt2img(visual_path)

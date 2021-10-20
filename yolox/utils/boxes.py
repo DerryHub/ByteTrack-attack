@@ -39,6 +39,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
     prediction[:, :, :4] = box_corner[:, :, :4]
 
     output = [None for _ in range(len(prediction))]
+    assert len(prediction) == 1
     for i, image_pred in enumerate(prediction):
 
         # If none are remaining => process next image
@@ -46,7 +47,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
             continue
         # Get score and class with highest confidence
         class_conf, class_pred = torch.max(
-            image_pred[:, 5 : 5 + num_classes], 1, keepdim=True
+            image_pred[:, 5: 5 + num_classes], 1, keepdim=True
         )
 
         conf_mask = (image_pred[:, 4] * class_conf.squeeze() >= conf_thre).squeeze()
@@ -69,7 +70,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
         else:
             output[i] = torch.cat((output[i], detections))
 
-    return output
+    return output, torch.arange(image_pred.size(0))[conf_mask][nms_out_index]
 
 
 def bboxes_iou(bboxes_a, bboxes_b, xyxy=True):
