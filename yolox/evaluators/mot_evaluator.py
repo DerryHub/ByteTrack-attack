@@ -18,6 +18,7 @@ from yolox.deepsort_tracker.deepsort import DeepSort
 from yolox.motdt_tracker.motdt_tracker import OnlineTracker
 
 from yolox.tracking_utils import visualization as vis
+from yolox.tracker.basetrack import BaseTrack
 
 import contextlib
 import io
@@ -27,7 +28,10 @@ import json
 import tempfile
 import time
 import cv2
+import copy
+import numpy as np
 
+from cython_bbox import bbox_overlaps as bbox_ious
 
 def write_results(filename, results):
     save_format = '{frame},{id},{x1},{y1},{w},{h},{s},-1,-1,-1\n'
@@ -103,6 +107,9 @@ class MOTEvaluator:
             ap50 (float) : COCO AP of IoU=50
             summary (sr): summary info of evaluation.
         """
+
+
+
         # TODO half to amp_test
         tensor_type = torch.cuda.HalfTensor if half else torch.cuda.FloatTensor
         model = model.eval()
@@ -111,6 +118,10 @@ class MOTEvaluator:
         ids = []
         data_list = []
         results = []
+        results_att = []
+        results_att_sg = {}
+        l2_distance = []
+        l2_distance_sg = {}
         video_names = defaultdict()
         progress_bar = tqdm if is_main_process() else iter
 
@@ -134,6 +145,7 @@ class MOTEvaluator:
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
             self.dataloader
         ):
+            sg_track_outputs = {}
             # with torch.no_grad():
             # init tracker
             frame_id = info_imgs[2].item()
@@ -171,6 +183,22 @@ class MOTEvaluator:
                     result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id - 1]))
                     write_results(result_filename, results)
                     results = []
+                BaseTrack.init()
+                need_attack_ids = set([])
+                suc_attacked_ids = set([])
+                frequency_ids = {}
+                trackers_dic = {}
+                suc_frequency_ids = {}
+
+                tracked_stracks = []
+                lost_stracks = []
+                removed_stracks = []
+                ad_last_info = {}
+
+                track_id = {'track_id': 1}
+                sg_track_ids = {}
+                sg_attack_frames = {}
+                attack_frames = 0
 
             imgs = imgs.type(tensor_type)
 
@@ -194,13 +222,119 @@ class MOTEvaluator:
             # data_list.extend(output_results)
 
             # run tracking
-            if self.args.attack:
-                online_targets = tracker.update_attack_sg(imgs, info_imgs, self.img_size, data_list, ids)
+            img0 = cv2.imread(os.path.join(self.args.img_dir, info_imgs[-1][0]))
+            if self.args.attack == 'single' and self.args.attack_id == -1:
+                online_targets = tracker.update(imgs, info_imgs, self.img_size, data_list, ids, track_id=track_id)
+                dets = []
+                ids_single = []
+
+                for strack in online_targets:
+                    if strack.track_id not in frequency_ids:
+                        frequency_ids[strack.track_id] = 0
+                    frequency_ids[strack.track_id] += 1
+                    if frequency_ids[strack.track_id] > tracker.FRAME_THR:
+                        ids_single.append(strack.track_id)
+                        dets.append(strack.curr_tlbr.reshape(1, -1))
+                if len(ids_single) > 0:
+                    dets = np.concatenate(dets).astype(np.float64)
+                    ious = bbox_ious(dets, dets)
+
+                    ious[range(len(dets)), range(len(dets))] = 0
+                    for i in range(len(dets)):
+                        for j in range(len(dets)):
+                            if ious[i, j] > tracker.ATTACK_IOU_THR:
+                                need_attack_ids.add(ids_single[i])
+
+                for attack_id in need_attack_ids:
+                    if attack_id in suc_attacked_ids:
+                        continue
+                    if attack_id not in trackers_dic:
+                        trackers_dic[attack_id] = BYTETracker(
+                            self.args,
+                            self.num_classes,
+                            self.confthre,
+                            self.nmsthre,
+                            self.convert_to_coco_format,
+                            model=model,
+                            decoder=decoder,
+                            tracked_stracks=tracked_stracks,
+                            lost_stracks=lost_stracks,
+                            removed_stracks=removed_stracks,
+                            frame_id=frame_id,
+                            ad_last_info=ad_last_info
+                        )
+                        sg_track_ids[attack_id] = {
+                            'origin': {'track_id': track_id['track_id']},
+                            'attack': {'track_id': track_id['track_id']}
+                        }
+                    output_stracks_att, adImg, noise, l2_dis, suc = trackers_dic[attack_id].update_attack_sg(
+                        imgs,
+                        info_imgs,
+                        self.img_size,
+                        data_list,
+                        ids,
+                        attack_id=attack_id,
+                        track_id=sg_track_ids[attack_id]
+                    )
+                    sg_track_outputs[attack_id] = {}
+                    sg_track_outputs[attack_id]['output_stracks_att'] = output_stracks_att
+                    sg_track_outputs[attack_id]['adImg'] = adImg
+                    sg_track_outputs[attack_id]['noise'] = noise
+                    if suc in [1, 2]:
+                        if attack_id not in sg_attack_frames:
+                            sg_attack_frames[attack_id] = 0
+                        sg_attack_frames[attack_id] += 1
+                    if attack_id not in results_att_sg:
+                        results_att_sg[attack_id] = []
+                    if attack_id not in l2_distance_sg:
+                        l2_distance_sg[attack_id] = []
+                    if l2_dis is not None:
+                        l2_distance_sg[attack_id].append(l2_dis)
+                    if suc == 1:
+                        suc_frequency_ids[attack_id] = 1
+                    elif suc == 2:
+                        suc_frequency_ids.pop(attack_id, None)
+                    elif suc == 3:
+                        if attack_id not in suc_frequency_ids:
+                            suc_frequency_ids[attack_id] = 0
+                        suc_frequency_ids[attack_id] += 1
+                    elif attack_id in suc_frequency_ids:
+                        suc_frequency_ids[attack_id] += 1
+                        if suc_frequency_ids[attack_id] > 20:
+                            suc_attacked_ids.add(attack_id)
+                            del trackers_dic[attack_id]
+                            torch.cuda.empty_cache()
+
+                tracked_stracks = copy.deepcopy(tracker.tracked_stracks)
+                lost_stracks = copy.deepcopy(tracker.lost_stracks)
+                removed_stracks = copy.deepcopy(tracker.removed_stracks)
+                ad_last_info = copy.deepcopy(tracker.ad_last_info)
+            elif self.args.attack == 'single':
+                online_targets, adImg, noise, l2_dis, suc = tracker.update_attack_sg(imgs, info_imgs, self.img_size, data_list, ids, attack_id=self.args.attack_id)
             else:
                 online_targets = tracker.update(imgs, info_imgs, self.img_size, data_list, ids)
             if is_time_record:
                 infer_end = time_synchronized()
                 inference_time += infer_end - start
+            if self.args.attack == 'single' and self.args.attack_id == -1:
+                for key in sg_track_outputs.keys():
+                    # cv2.imwrite(imgPath.replace('.jpg', f'_{key}.jpg'), sg_track_outputs[key]['adImg'])
+                    # if sg_track_outputs[key]['noise'] is not None:
+                    #     cv2.imwrite(noisePath.replace('.jpg', f'_{key}.jpg'), sg_track_outputs[key]['noise'])
+                    online_tlwhs_att = []
+                    online_ids_att = []
+                    for t in sg_track_outputs[key]['output_stracks_att']:
+                        # tlwh = t.tlwh
+                        tlwh = t.tlbr_to_tlwh(t.curr_tlbr)
+                        tid = t.track_id
+                        vertical = tlwh[2] / tlwh[3] > 1.6
+                        if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
+                            online_tlwhs_att.append(tlwh)
+                            online_ids_att.append(tid)
+                    results_att_sg[key].append((frame_id + 1, online_tlwhs_att, online_ids_att))
+                    sg_track_outputs[key]['online_tlwhs_att'] = online_tlwhs_att
+                    sg_track_outputs[key]['online_ids_att'] = online_ids_att
+
             online_tlwhs = []
             online_ids = []
             online_scores = []
@@ -222,16 +356,41 @@ class MOTEvaluator:
             if cur_iter == len(self.dataloader) - 1:
                 result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
                 write_results(result_filename, results)
-
-            img0 = cv2.imread(os.path.join('datasets/mot/train', info_imgs[-1][0]))
+            if self.args.attack == 'single' and self.args.attack_id == -1:
+                for key in sg_track_outputs.keys():
+                    img0 = sg_track_outputs[key]['adImg'].astype(np.uint8)
+                    sg_track_outputs[key]['online_im'] = vis.plot_tracking(
+                        img0,
+                        sg_track_outputs[key]['online_tlwhs_att'],
+                        sg_track_outputs[key]['online_ids_att'],
+                        frame_id=frame_id,
+                        fps=0
+                    )
             online_im = vis.plot_tracking(img0, online_tlwhs, online_ids, frame_id=frame_id,
-                                          fps=0)
+                                      fps=0)
             if self.args.attack:
-                save_dir = '/home/derry/Disk/data/B_MOT/att'
+                save_dir = f'/home/derry/Disk/data/B_MOT/att/{video_name}'
             else:
-                save_dir = '/home/derry/Disk/data/B_MOT/ori'
+                save_dir = f'/home/derry/Disk/data/B_MOT/ori/{video_name}'
             os.makedirs(save_dir, exist_ok=True)
+            if self.args.attack == 'single' and self.args.attack_id == -1:
+                for key in sg_track_outputs.keys():
+                    cv2.imwrite(os.path.join(save_dir, '{:05d}_{}.jpg'.format(frame_id, key)),
+                                sg_track_outputs[key]['online_im'])
             cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), online_im)
+
+        if self.args.attack == 'single' and self.args.attack_id == -1:
+            print('@' * 50 + ' single attack accuracy ' + '@' * 50)
+            print(f'All attacked ids is {need_attack_ids}')
+            print(f'All successfully attacked ids is {suc_attacked_ids}')
+            print(f'All unsuccessfully attacked ids is {need_attack_ids - suc_attacked_ids}')
+            print(
+                f'The accuracy is {round(100 * len(suc_attacked_ids) / len(need_attack_ids), 2) if len(need_attack_ids) else 0}%')
+            print(
+                f'The attacked frames: {sg_attack_frames}\tmin: {min(sg_attack_frames.values()) if len(need_attack_ids) else None}\t'
+                f'max: {max(sg_attack_frames.values()) if len(need_attack_ids) else None}\tmean: {sum(sg_attack_frames.values()) / len(sg_attack_frames) if len(need_attack_ids) else None}')
+            print(
+                f'The mean L2 distance: {dict(zip(suc_attacked_ids, [sum(l2_distance_sg[k]) / len(l2_distance_sg[k]) for k in suc_attacked_ids])) if len(suc_attacked_ids) else None}')
         raise RuntimeError('Finish')
         statistics = torch.cuda.FloatTensor([inference_time, track_time, n_samples])
         if distributed:
