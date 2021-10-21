@@ -17,6 +17,8 @@ from yolox.sort_tracker.sort import Sort
 from yolox.deepsort_tracker.deepsort import DeepSort
 from yolox.motdt_tracker.motdt_tracker import OnlineTracker
 
+from yolox.tracking_utils import visualization as vis
+
 import contextlib
 import io
 import os
@@ -24,6 +26,7 @@ import itertools
 import json
 import tempfile
 import time
+import cv2
 
 
 def write_results(filename, results):
@@ -131,50 +134,50 @@ class MOTEvaluator:
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
             self.dataloader
         ):
-            with torch.no_grad():
-                # init tracker
-                frame_id = info_imgs[2].item()
-                video_id = info_imgs[3].item()
-                img_file_name = info_imgs[4]
-                video_name = img_file_name[0].split('/')[0]
-                if video_name == 'MOT17-05-FRCNN' or video_name == 'MOT17-06-FRCNN':
-                    self.args.track_buffer = 14
-                elif video_name == 'MOT17-13-FRCNN' or video_name == 'MOT17-14-FRCNN':
-                    self.args.track_buffer = 25
-                else:
-                    self.args.track_buffer = 30
+            # with torch.no_grad():
+            # init tracker
+            frame_id = info_imgs[2].item()
+            video_id = info_imgs[3].item()
+            img_file_name = info_imgs[4]
+            video_name = img_file_name[0].split('/')[0]
+            if video_name == 'MOT17-05-FRCNN' or video_name == 'MOT17-06-FRCNN':
+                self.args.track_buffer = 14
+            elif video_name == 'MOT17-13-FRCNN' or video_name == 'MOT17-14-FRCNN':
+                self.args.track_buffer = 25
+            else:
+                self.args.track_buffer = 30
 
-                if video_name == 'MOT17-01-FRCNN':
-                    self.args.track_thresh = 0.65
-                elif video_name == 'MOT17-06-FRCNN':
-                    self.args.track_thresh = 0.65
-                elif video_name == 'MOT17-12-FRCNN':
-                    self.args.track_thresh = 0.7
-                elif video_name == 'MOT17-14-FRCNN':
-                    self.args.track_thresh = 0.67
-                else:
-                    self.args.track_thresh = ori_thresh
-                
-                if video_name == 'MOT20-06' or video_name == 'MOT20-08':
-                    self.args.track_thresh = 0.3
-                else:
-                    self.args.track_thresh = ori_thresh
+            if video_name == 'MOT17-01-FRCNN':
+                self.args.track_thresh = 0.65
+            elif video_name == 'MOT17-06-FRCNN':
+                self.args.track_thresh = 0.65
+            elif video_name == 'MOT17-12-FRCNN':
+                self.args.track_thresh = 0.7
+            elif video_name == 'MOT17-14-FRCNN':
+                self.args.track_thresh = 0.67
+            else:
+                self.args.track_thresh = ori_thresh
 
-                if video_name not in video_names:
-                    video_names[video_id] = video_name
-                if frame_id == 1:
-                    tracker = BYTETracker(self.args, self.num_classes, self.confthre, self.nmsthre, self.convert_to_coco_format, model=model, decoder=decoder)
-                    if len(results) != 0:
-                        result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id - 1]))
-                        write_results(result_filename, results)
-                        results = []
+            if video_name == 'MOT20-06' or video_name == 'MOT20-08':
+                self.args.track_thresh = 0.3
+            else:
+                self.args.track_thresh = ori_thresh
 
-                imgs = imgs.type(tensor_type)
+            if video_name not in video_names:
+                video_names[video_id] = video_name
+            if frame_id == 1:
+                tracker = BYTETracker(self.args, self.num_classes, self.confthre, self.nmsthre, self.convert_to_coco_format, model=model, decoder=decoder)
+                if len(results) != 0:
+                    result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id - 1]))
+                    write_results(result_filename, results)
+                    results = []
 
-                # skip the the last iters since batchsize might be not enough for batch inference
-                is_time_record = cur_iter < len(self.dataloader) - 1
-                if is_time_record:
-                    start = time.time()
+            imgs = imgs.type(tensor_type)
+
+            # skip the the last iters since batchsize might be not enough for batch inference
+            is_time_record = cur_iter < len(self.dataloader) - 1
+            if is_time_record:
+                start = time.time()
             if frame_id % 20 == 0:
                 print(frame_id)
             #     outputs = model(imgs)
@@ -202,7 +205,7 @@ class MOTEvaluator:
             online_ids = []
             online_scores = []
             for t in online_targets:
-                tlwh = t.tlwh
+                tlwh = t.tlbr_to_tlwh(t.curr_tlbr)
                 tid = t.track_id
                 vertical = tlwh[2] / tlwh[3] > 1.6
                 if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
@@ -220,6 +223,16 @@ class MOTEvaluator:
                 result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
                 write_results(result_filename, results)
 
+            img0 = cv2.imread(os.path.join('datasets/mot/train', info_imgs[-1][0]))
+            online_im = vis.plot_tracking(img0, online_tlwhs, online_ids, frame_id=frame_id,
+                                          fps=0)
+            if self.args.attack:
+                save_dir = '/home/derry/Disk/data/B_MOT/att'
+            else:
+                save_dir = '/home/derry/Disk/data/B_MOT/ori'
+            os.makedirs(save_dir, exist_ok=True)
+            cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), online_im)
+        raise RuntimeError('Finish')
         statistics = torch.cuda.FloatTensor([inference_time, track_time, n_samples])
         if distributed:
             data_list = gather(data_list, dst=0)

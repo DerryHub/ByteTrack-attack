@@ -13,6 +13,7 @@ from .basetrack import BaseTrack, TrackState
 
 from cython_bbox import bbox_overlaps as bbox_ious
 
+from scipy.optimize import linear_sum_assignment
 mse = torch.nn.MSELoss()
 
 class STrack(BaseTrack):
@@ -304,13 +305,17 @@ class BYTETracker(object):
         i = 0
         j = -1
         suc = True
+        ori_index = []
+        att_index = []
+        attack_det_center_max = None
+        target_det_center_max = None
         while True:
             i += 1
-            loss = 0
-            loss -= mse(imgs, imgs_ori)
+            loss_l2 = mse(imgs, imgs_ori)
 
             attack_outputs_ind = hm_index[attack_ind].clone()
             target_outputs_ind = hm_index[target_ind].clone()
+
             attack_i = None
             target_i = None
             for o_i in range(3):
@@ -328,64 +333,92 @@ class BYTETracker(object):
 
             assert attack_i is not None and target_i is not None
 
-            if i in [1, 10, 20, 30, 40, 60, 80]:
+            if i in [1, 10, 20, 30, 40, 50, 55, 60, 65, 70, 75, 80]:
                 ori_index = []
                 att_index = []
                 attack_det_center = torch.stack([attack_outputs_ind % Ws[attack_i], attack_outputs_ind // Ws[attack_i]]).float().cuda()
                 target_det_center = torch.stack([target_outputs_ind % Ws[target_i], target_outputs_ind // Ws[target_i]]).float().cuda()
+                if attack_det_center_max is None:
+                    attack_det_center_max = attack_det_center * 2 ** attack_i
+                if target_det_center_max is None:
+                    target_det_center_max = target_det_center * 2 ** target_i
                 if last_target_det_center is not None:
-                    last_target_det_center_ = last_target_det_center * Ws[attack_i]/W
-                    attack_center_delta = attack_det_center - last_target_det_center_
+                    last_target_det_center_ = last_target_det_center * Ws[0]/W
+                    attack_center_delta = attack_det_center_max - last_target_det_center_
                     if torch.max(torch.abs(attack_center_delta)) >= 1:
                         attack_center_delta /= torch.max(torch.abs(attack_center_delta))
-                        attack_det_center = torch.round(attack_det_center - attack_center_delta).int()
-                        attack_outputs_ind = attack_det_center[0] + attack_det_center[1] * Ws[attack_i]
-                        for a_i in range(attack_i):
-                            attack_outputs_ind += Ws[a_i] * Hs[a_i]
+                        attack_det_center_max = torch.round(attack_det_center_max - attack_center_delta).int()
+                        attack_det_center_mid = torch.round(attack_det_center_max / 2).int()
+                        attack_det_center_min = torch.round(attack_det_center_mid / 2).int()
+                        attack_outputs_ind_max = attack_det_center_max[0] + attack_det_center_max[1] * Ws[0]
+                        attack_outputs_ind_mid = attack_det_center_mid[0] + attack_det_center_mid[1] * Ws[1] \
+                                                 + Ws[0] * Hs[0]
+                        attack_outputs_ind_min = attack_det_center_min[0] + attack_det_center_min[1] * Ws[2] \
+                                                 + Ws[0] * Hs[0] + Ws[1] * Hs[1]
+                        # import pdb; pdb.set_trace()
                         ori_index.append(hm_index[attack_ind].clone())
-                        hm_index[attack_ind] = attack_outputs_ind
-                        att_index.append(attack_outputs_ind)
+                        # hm_index[attack_ind] = attack_outputs_ind
+                        att_index.extend([
+                            attack_outputs_ind_max,
+                            attack_outputs_ind_mid,
+                            attack_outputs_ind_min
+                        ])
                 if last_attack_det_center is not None:
-                    last_attack_det_center_ = last_attack_det_center * Ws[target_i]/W
-                    target_center_delta = target_det_center - last_attack_det_center_
+                    last_attack_det_center_ = last_attack_det_center * Ws[0]/W
+                    target_center_delta = target_det_center_max - last_attack_det_center_
                     if torch.max(torch.abs(target_center_delta)) >= 1:
                         target_center_delta /= torch.max(torch.abs(target_center_delta))
-                        target_det_center = torch.round(target_det_center - target_center_delta).int()
-                        target_outputs_ind = target_det_center[0] + target_det_center[1] * Ws[target_i]
-                        for t_i in range(target_i):
-                            target_outputs_ind += Ws[t_i] * Hs[t_i]
+                        target_det_center_max = torch.round(target_det_center_max - target_center_delta).int()
+                        target_det_center_mid = torch.round(target_det_center_max / 2).int()
+                        target_det_center_min = torch.round(target_det_center_mid / 2).int()
+                        target_outputs_ind_max = target_det_center_max[0] + target_det_center_max[1] * Ws[0]
+                        target_outputs_ind_mid = target_det_center_mid[0] + target_det_center_mid[1] * Ws[1] \
+                                                 + Ws[0] * Hs[0]
+                        target_outputs_ind_min = target_det_center_min[0] + target_det_center_min[1] * Ws[2] \
+                                                 + Ws[0] * Hs[0] + Ws[1] * Hs[1]
+                        # target_outputs_ind = target_det_center[0] + target_det_center[1] * Ws[target_i]
+                        # for t_i in range(target_i):
+                        #     target_outputs_ind += Ws[t_i] * Hs[t_i]
                         ori_index.append(hm_index[target_ind].clone())
-                        hm_index[target_ind] = target_outputs_ind
-                        att_index.append(target_outputs_ind)
+                        # hm_index[target_ind] = target_outputs_ind
+                        att_index.extend([
+                            target_outputs_ind_max,
+                            target_outputs_ind_mid,
+                            target_outputs_ind_min
+                        ])
                 if len(att_index):
                     att_index = torch.stack(att_index).type(torch.int64)
                 if len(ori_index):
                     ori_index = torch.stack(ori_index).type(torch.int64)
-
-
-            # loss += ((1 - outputs[:, -1][hm_index]) ** 2 *
+                # import pdb; pdb.set_trace()
+            # print(att_index)
+            # loss_ = ((1 - outputs[:, -1][hm_index]) ** 2 *
             #         torch.log(outputs[:, -1][hm_index])).mean()
+            loss_att = 0
+            loss_ori = 0
             if len(att_index):
-                loss += ((1 - outputs[:, -1][att_index]) ** 2 *
+                # outputs[:, -2:] = torch.clip(outputs[:, -2:], min=1e-4)
+                loss_att += ((1 - outputs[:, -1][att_index]) ** 2 *
                          torch.log(outputs[:, -1][att_index])).mean()
-                # loss += ((1 - outputs[:, -2][att_index]) ** 2 *
-                #          torch.log(outputs[:, -2][att_index])).mean()
+                # loss_att += ((1 - outputs[:, -2][att_index]) ** 2 *
+                #          torch.log(outputs[:, -2][att_index])+1e-4).mean()
             if len(ori_index):
-                loss += ((outputs[:, -1][ori_index]) ** 2 *
+                # outputs[:, -2:] = torch.clip(outputs[:, -2:], max=1-1e-4)
+                loss_ori += ((outputs[:, -1][ori_index]) ** 2 *
                          torch.log(1-outputs[:, -1][ori_index])).mean()
-                # loss += ((outputs[:, -2][ori_index]) ** 2 *
+                # loss_ori += ((outputs[:, -2][ori_index]) ** 2 *
                 #          torch.log(1 - outputs[:, -2][ori_index])).mean()
 
-            # loss -= mse(outputs[:, :4][att_index], reg[ori_index])
+            # loss_wh = -mse(outputs[:, :4][att_index], reg[ori_index_re])
             # import pdb; pdb.set_trace()
             # loss -= mse(outputs['wh'].view(-1)[hm_index], wh_ori.view(-1)[hm_index_ori])
             # loss -= mse(outputs['reg'].view(-1)[hm_index], reg_ori.view(-1)[hm_index_ori])
             # import pdb; pdb.set_trace()
 
+            loss = loss_l2 + loss_att + loss_ori
             loss.backward()
             grad = imgs.grad
-            if torch.isnan(grad).sum()>0:
-                import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
 
             # adam_m = beta_1 * adam_m + (1 - beta_1) * grad
             # adam_v = beta_2 * adam_v + (1 - beta_2) * (grad ** 2)
@@ -397,11 +430,11 @@ class BYTETracker(object):
 
             noise += grad
 
-            imgs = (imgs_ori + noise).data
+            imgs = (imgs_ori + noise)
             imgs[0, 0] = torch.clip(imgs[0, 0], min=-0.485 / 0.229, max=(1 - 0.485) / 0.229)
             imgs[0, 1] = torch.clip(imgs[0, 1], min=-0.456 / 0.224, max=(1 - 0.456) / 0.224)
             imgs[0, 2] = torch.clip(imgs[0, 2], min=-0.406 / 0.225, max=(1 - 0.406) / 0.225)
-            print(hm_index_ori[[attack_ind, target_ind]], hm_index[[attack_ind, target_ind]])
+            imgs = imgs.data
             outputs, ae_attack_id, ae_target_id, _ = self.forwardFeatureSg(
                 imgs,
                 img_info,
@@ -452,7 +485,7 @@ class BYTETracker(object):
         if self.decoder is not None:
             outputs = self.decoder(outputs, dtype=outputs.type())
 
-        outputs_post, outputs_index = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
+        outputs_post, outputs_index = postprocess(outputs.detach(), self.num_classes, self.confthre, self.nmsthre)
         output_results = outputs_post[0]
         outputs = outputs[0]
 
@@ -460,7 +493,7 @@ class BYTETracker(object):
             scores = output_results[:, 4]
             bboxes = output_results[:, :4]
         else:
-            output_results = output_results.detach().cpu().numpy()
+            output_results = output_results.cpu().numpy()
             scores = output_results[:, 4] * output_results[:, 5]
             bboxes = output_results[:, :4]  # x1y1x2y2
         scale = min(inp_height / float(height), inp_width / float(width))
@@ -487,16 +520,21 @@ class BYTETracker(object):
                          np.ascontiguousarray(dets_all[:, :4], dtype=np.float64))
 
         det_ind = np.argmax(ious, axis=1)
+        row_inds, col_inds = linear_sum_assignment(-ious)
+
         ae_attack_id = None
         ae_target_id = None
         # if ious[0, det_ind[0]] < 0.6 or ious[1, det_ind[1]] < 0.6:
         #     return outputs, ae_attack_id, ae_target_id, None
 
-        ae_attack_ind = det_ind[0]
-        ae_target_ind = det_ind[1]
+        if row_inds[0] == 0:
+            ae_attack_ind = col_inds[0]
+            ae_target_ind = col_inds[1]
+        else:
+            ae_attack_ind = col_inds[1]
+            ae_target_ind = col_inds[0]
 
-        hm_index[[attack_ind, target_ind]] = hm_index[[ae_attack_ind, ae_target_ind]]
-        print(hm_index[[attack_ind, target_ind]])
+        # hm_index[[attack_ind, target_ind]] = hm_index[[ae_attack_ind, ae_target_ind]]
 
         if len(dets) > 0:
             '''Detections'''
@@ -645,12 +683,12 @@ class BYTETracker(object):
         removed_stracks = []
 
         with torch.no_grad():
-            outputs = self.model(imgs)
+            outputs = self.model(imgs.data)
         if self.decoder is not None:
             outputs = self.decoder(outputs, dtype=outputs.type())
         outputs, _ = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
         # import pdb; pdb.set_trace()
-        output_results = self.convert_to_coco_format([outputs[0].detach()], img_info, ids)
+        output_results = self.convert_to_coco_format(outputs, img_info, ids)
         data_list.extend(output_results)
         output_results = outputs[0]
 
@@ -804,12 +842,12 @@ class BYTETracker(object):
         removed_stracks = []
 
         imgs.requires_grad = True
-        self.model.zero_grad()
-        outputs = self.model(imgs)
+        self.model_2.zero_grad()
+        outputs = self.model_2(imgs)
 
         if self.decoder is not None:
             outputs = self.decoder(outputs, dtype=outputs.type())
-        outputs_post, outputs_index = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
+        outputs_post, outputs_index = postprocess(outputs.detach(), self.num_classes, self.confthre, self.nmsthre)
 
         output_results = self.convert_to_coco_format([outputs_post[0].detach()], img_info, ids)
         data_list.extend(output_results)
@@ -945,7 +983,7 @@ class BYTETracker(object):
         output_stracks = [track for track in self.tracked_stracks_ if track.is_activated]
 
         dets_all = np.concatenate([dets, dets_second])
-        attack_id = 5
+        attack_id = 14
         noise = None
         suc = 0
         for attack_ind, track_id in enumerate(dets_ids):
@@ -1012,9 +1050,15 @@ class BYTETracker(object):
         # else:
         #     l2_dis = None
         #     adImg = img0
+        if noise is not None:
+            imgs = (imgs + noise)
+            imgs[0, 0] = torch.clip(imgs[0, 0], min=-0.485 / 0.229, max=(1 - 0.485) / 0.229)
+            imgs[0, 1] = torch.clip(imgs[0, 1], min=-0.456 / 0.224, max=(1 - 0.456) / 0.224)
+            imgs[0, 2] = torch.clip(imgs[0, 2], min=-0.406 / 0.225, max=(1 - 0.406) / 0.225)
+            imgs = imgs.data
         output_stracks_att = self.update(imgs, img_info, img_size, [], ids)
 
-        return output_stracks
+        return output_stracks_att
 
 def joint_stracks(tlista, tlistb):
     exists = {}
