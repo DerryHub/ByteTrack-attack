@@ -291,7 +291,7 @@ class MOTEvaluator:
                     if l2_dis is not None:
                         l2_distance_sg[attack_id].append(l2_dis)
                     if suc == 1:
-                        suc_frequency_ids[attack_id] = 1
+                        suc_frequency_ids[attack_id] = 0
                     elif suc == 2:
                         suc_frequency_ids.pop(attack_id, None)
                     elif suc == 3:
@@ -380,6 +380,10 @@ class MOTEvaluator:
             cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), online_im)
 
         if self.args.attack == 'single' and self.args.attack_id == -1:
+            for key in suc_frequency_ids.keys():
+                if suc_frequency_ids[key] == 0:
+                    del suc_frequency_ids[key]
+            suc_attacked_ids.update(set(suc_frequency_ids.keys()))
             print('@' * 50 + ' single attack accuracy ' + '@' * 50)
             print(f'All attacked ids is {need_attack_ids}')
             print(f'All successfully attacked ids is {suc_attacked_ids}')
