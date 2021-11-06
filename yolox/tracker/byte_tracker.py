@@ -264,7 +264,7 @@ class BYTETracker(object):
         self.kalman_filter = KalmanFilter()
 
         self.FRAME_THR = 10
-        self.ATTACK_IOU_THR = 0.3
+        self.ATTACK_IOU_THR = 0.2
         self.attack_iou_thr = self.ATTACK_IOU_THR
         self.ad_last_info = copy.deepcopy(ad_last_info)
 
@@ -314,10 +314,7 @@ class BYTETracker(object):
             attack_id,
             attack_ind,
             target_id,
-            target_ind,
-            lr=0.1,
-            beta_1=0.9,
-            beta_2=0.999
+            target_ind
     ):
         img0_h = img_info[0][0].item()
         img0_w = img_info[1][0].item()
@@ -354,9 +351,6 @@ class BYTETracker(object):
 
         Ws = [W//s for s in [8, 16, 32]]
         Hs = [H//s for s in [8, 16, 32]]
-
-        adam_m = 0
-        adam_v = 0
 
         i = 0
         j = -1
@@ -474,7 +468,6 @@ class BYTETracker(object):
                     else:
                         ori_index_re_ = ori_index_re
 
-            loss_l2 = mse(imgs, imgs_ori)
             loss_att = 0
             loss_ori = 0
             loss_wh = 0
@@ -509,7 +502,7 @@ class BYTETracker(object):
                 outputs_wh = outputs[:, 2:4][n_att_index_lst] - outputs[:, :2][n_att_index_lst]
                 loss_wh += -smoothL1(outputs_wh, reg_wh[n_ori_index_lst])
 
-            loss = loss_l2 + loss_att + loss_ori + loss_wh * 0.1
+            loss = loss_att + loss_ori + loss_wh * 0.1
             loss.backward()
             grad = imgs.grad
             grad /= (grad ** 2).sum().sqrt() + 1e-8
@@ -533,20 +526,21 @@ class BYTETracker(object):
                 last_info
             )
             if ae_attack_id != attack_id and ae_attack_id is not None:
-                if ae_attack_id == target_id and ae_target_id == attack_id:
-                    break
-                elif ae_attack_id == target_id or ae_target_id == attack_id:
-                    noise_0 = noise.clone()
-                    i_0 = i
-                else:
-                    noise_1 = noise.clone()
-                    i_1 = i
+                break
+                # if ae_attack_id == target_id and ae_target_id == attack_id:
+                #     break
+                # elif ae_attack_id == target_id or ae_target_id == attack_id:
+                #     noise_0 = noise.clone()
+                #     i_0 = i
+                # else:
+                #     noise_1 = noise.clone()
+                #     i_1 = i
 
-            if i > 80:
-                if noise_0 is not None:
-                    return noise_0, i_0, suc
-                elif noise_1 is not None:
-                    return noise_1, i_1, suc
+            if i > 60:
+                # if noise_0 is not None:
+                #     return noise_0, i_0, suc
+                # elif noise_1 is not None:
+                #     return noise_1, i_1, suc
                 suc = False
                 break
         return noise, i, suc

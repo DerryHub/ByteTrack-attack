@@ -368,16 +368,16 @@ class MOTEvaluator:
                     )
             online_im = vis.plot_tracking(img0, online_tlwhs, online_ids, frame_id=frame_id,
                                       fps=0)
-            if self.args.attack:
-                save_dir = f'/home/derry/Disk/data/B_MOT/att/{video_name}'
-            else:
-                save_dir = f'/home/derry/Disk/data/B_MOT/ori/{video_name}'
-            os.makedirs(save_dir, exist_ok=True)
-            if self.args.attack == 'single' and self.args.attack_id == -1:
-                for key in sg_track_outputs.keys():
-                    cv2.imwrite(os.path.join(save_dir, '{:05d}_{}.jpg'.format(frame_id, key)),
-                                sg_track_outputs[key]['online_im'])
-            cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), online_im)
+            # if self.args.attack:
+            #     save_dir = f'/home/derry/Disk/data/B_MOT/att/{video_name}'
+            # else:
+            #     save_dir = f'/home/derry/Disk/data/B_MOT/ori/{video_name}'
+            # os.makedirs(save_dir, exist_ok=True)
+            # if self.args.attack == 'single' and self.args.attack_id == -1:
+            #     for key in sg_track_outputs.keys():
+            #         cv2.imwrite(os.path.join(save_dir, '{:05d}_{}.jpg'.format(frame_id, key)),
+            #                     sg_track_outputs[key]['online_im'])
+            # cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), online_im)
 
         if self.args.attack == 'single' and self.args.attack_id == -1:
             for key in suc_frequency_ids.keys():
