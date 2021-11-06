@@ -36,9 +36,9 @@ if __name__ == '__main__':
             if '.DS_Store' in seq:
                 continue
             if 'mot' in DATA_PATH and (split != 'test' and not ('FRCNN' in seq)):
-                if 'mot17' in DATA_PATH:
-                    continue
-                pass
+                continue
+            if 'SDP' not in seq:
+                continue
             video_cnt += 1  # video sequence number.
             out['videos'].append({'id': video_cnt, 'file_name': seq})
             seq_path = os.path.join(data_path, seq)
