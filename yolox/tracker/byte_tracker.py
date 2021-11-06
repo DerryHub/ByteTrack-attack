@@ -35,6 +35,14 @@ if seed == 0:
 mse = torch.nn.MSELoss()
 smoothL1 = torch.nn.SmoothL1Loss()
 
+def bbox_dis(bbox1, bbox2):
+    center1 = (bbox1[:, :2] + bbox1[:, 2:]) / 2
+    center2 = (bbox2[:, :2] + bbox2[:, 2:]) / 2
+    center1 = np.repeat(center1.reshape(-1, 1, 2), len(bbox2), axis=1)
+    center2 = np.repeat(center2.reshape(1, -1, 2), len(bbox1), axis=0)
+    dis = np.sqrt(np.sum((center1 - center2) ** 2, axis=-1))
+    return dis
+
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
     shared_kalman_ = KalmanFilter()
@@ -386,7 +394,7 @@ class BYTETracker(object):
         while True:
             i += 1
 
-            if i in [1, 10, 20, 30, 40, 50, 55, 60, 65, 70, 75, 80]:
+            if i in [1, 10, 20, 30, 40, 45, 50, 55]:
                 att_index = []
                 attack_det_center = torch.stack([attack_outputs_ind % Ws[attack_i], attack_outputs_ind // Ws[attack_i]]).float().cuda()
                 target_det_center = torch.stack([target_outputs_ind % Ws[target_i], target_outputs_ind // Ws[target_i]]).float().cuda()
@@ -1090,8 +1098,13 @@ class BYTETracker(object):
                                  np.ascontiguousarray(dets_all[:, :4], dtype=np.float64))
 
                 ious[range(len(ious)), range(len(ious))] = 0
+                dis = bbox_dis(np.ascontiguousarray(dets[:, :4], dtype=np.float64),
+                               np.ascontiguousarray(dets[:, :4], dtype=np.float64))
+                dis[range(len(dets)), range(len(dets))] = np.inf
                 target_ind = np.argmax(ious[attack_ind])
                 if ious[attack_ind][target_ind] >= self.attack_iou_thr:
+                    if ious[attack_ind][target_ind] == 0:
+                        target_ind = np.argmin(dis[attack_ind])
                     target_id = dets_ids[target_ind]
                     if fit:
                         noise, attack_iter, suc = self.ifgsm_adam_sg(
