@@ -33,6 +33,14 @@ import numpy as np
 
 from cython_bbox import bbox_overlaps as bbox_ious
 
+class Logger:
+    def __init__(self, file):
+        self.file = file
+
+    def __call__(self, s):
+        print(s)
+        print(s, file=self.file)
+
 def write_results(filename, results):
     save_format = '{frame},{id},{x1},{y1},{w},{h},{s},-1,-1,-1\n'
     with open(filename, 'w') as f:
@@ -142,6 +150,8 @@ class MOTEvaluator:
         # tracker = BYTETracker(self.args, model=model, decoder=decoder)
         tracker = None
         ori_thresh = self.args.track_thresh
+        last_vdo = None
+        vdos = 0
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
             self.dataloader
         ):
@@ -178,6 +188,27 @@ class MOTEvaluator:
             if video_name not in video_names:
                 video_names[video_id] = video_name
             if frame_id == 1:
+                vdos += 1
+                if last_vdo and self.args.attack == 'single' and self.args.attack_id == -1:
+                    output_file = os.path.join(self.args.output_dir, f'{last_vdo}_attack_result.txt')
+                    file = open(output_file, 'w')
+                    out_logger = Logger(file)
+                    for key in suc_frequency_ids.keys():
+                        if suc_frequency_ids[key] == 0:
+                            del suc_frequency_ids[key]
+                    suc_attacked_ids.update(set(suc_frequency_ids.keys()))
+                    out_logger('@' * 50 + ' single attack accuracy ' + '@' * 50)
+                    out_logger(f'All attacked ids is {need_attack_ids}')
+                    out_logger(f'All successfully attacked ids is {suc_attacked_ids}')
+                    out_logger(f'All unsuccessfully attacked ids is {need_attack_ids - suc_attacked_ids}')
+                    out_logger(
+                        f'The accuracy is {round(100 * len(suc_attacked_ids) / len(need_attack_ids), 2) if len(need_attack_ids) else 0}%')
+                    out_logger(
+                        f'The attacked frames: {sg_attack_frames}\tmin: {min(sg_attack_frames.values()) if len(need_attack_ids) else None}\t'
+                        f'max: {max(sg_attack_frames.values()) if len(need_attack_ids) else None}\tmean: {sum(sg_attack_frames.values()) / len(sg_attack_frames) if len(need_attack_ids) else None}')
+                    out_logger(
+                        f'The mean L2 distance: {dict(zip(suc_attacked_ids, [sum(l2_distance_sg[k]) / len(l2_distance_sg[k]) for k in suc_attacked_ids])) if len(suc_attacked_ids) else None}')
+                last_vdo = video_name
                 tracker = BYTETracker(self.args, self.num_classes, self.confthre, self.nmsthre, self.convert_to_coco_format, model=model, decoder=decoder)
                 if len(results) != 0:
                     result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id - 1]))
@@ -207,7 +238,7 @@ class MOTEvaluator:
             if is_time_record:
                 start = time.time()
             if frame_id % 20 == 0:
-                print(frame_id)
+                print(vdos, video_name, frame_id)
             #     outputs = model(imgs)
             #     if decoder is not None:
             #         outputs = decoder(outputs, dtype=outputs.type())
@@ -222,7 +253,7 @@ class MOTEvaluator:
             # data_list.extend(output_results)
 
             # run tracking
-            img0 = cv2.imread(os.path.join(self.args.img_dir, info_imgs[-1][0]))
+            # img0 = cv2.imread(os.path.join(self.args.img_dir, info_imgs[-1][0]))
             if self.args.attack == 'single' and self.args.attack_id == -1:
                 online_targets = tracker.update(imgs, info_imgs, self.img_size, data_list, ids, track_id=track_id)
                 dets = []
@@ -356,18 +387,18 @@ class MOTEvaluator:
             if cur_iter == len(self.dataloader) - 1:
                 result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
                 write_results(result_filename, results)
-            if self.args.attack == 'single' and self.args.attack_id == -1:
-                for key in sg_track_outputs.keys():
-                    img0 = sg_track_outputs[key]['adImg'].astype(np.uint8)
-                    sg_track_outputs[key]['online_im'] = vis.plot_tracking(
-                        img0,
-                        sg_track_outputs[key]['online_tlwhs_att'],
-                        sg_track_outputs[key]['online_ids_att'],
-                        frame_id=frame_id,
-                        fps=0
-                    )
-            online_im = vis.plot_tracking(img0, online_tlwhs, online_ids, frame_id=frame_id,
-                                      fps=0)
+            # if self.args.attack == 'single' and self.args.attack_id == -1:
+            #     for key in sg_track_outputs.keys():
+            #         img0 = sg_track_outputs[key]['adImg'].astype(np.uint8)
+            #         sg_track_outputs[key]['online_im'] = vis.plot_tracking(
+            #             img0,
+            #             sg_track_outputs[key]['online_tlwhs_att'],
+            #             sg_track_outputs[key]['online_ids_att'],
+            #             frame_id=frame_id,
+            #             fps=0
+            #         )
+            # online_im = vis.plot_tracking(img0, online_tlwhs, online_ids, frame_id=frame_id,
+            #                           fps=0)
             # if self.args.attack:
             #     save_dir = f'/home/derry/Disk/data/B_MOT/att/{video_name}'
             # else:
@@ -379,21 +410,24 @@ class MOTEvaluator:
             #                     sg_track_outputs[key]['online_im'])
             # cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), online_im)
 
-        if self.args.attack == 'single' and self.args.attack_id == -1:
+        if last_vdo and self.args.attack == 'single' and self.args.attack_id == -1:
+            output_file = os.path.join(self.args.output_dir, f'{last_vdo}_attack_result.txt')
+            file = open(output_file, 'w')
+            out_logger = Logger(file)
             for key in suc_frequency_ids.keys():
                 if suc_frequency_ids[key] == 0:
                     del suc_frequency_ids[key]
             suc_attacked_ids.update(set(suc_frequency_ids.keys()))
-            print('@' * 50 + ' single attack accuracy ' + '@' * 50)
-            print(f'All attacked ids is {need_attack_ids}')
-            print(f'All successfully attacked ids is {suc_attacked_ids}')
-            print(f'All unsuccessfully attacked ids is {need_attack_ids - suc_attacked_ids}')
-            print(
+            out_logger('@' * 50 + ' single attack accuracy ' + '@' * 50)
+            out_logger(f'All attacked ids is {need_attack_ids}')
+            out_logger(f'All successfully attacked ids is {suc_attacked_ids}')
+            out_logger(f'All unsuccessfully attacked ids is {need_attack_ids - suc_attacked_ids}')
+            out_logger(
                 f'The accuracy is {round(100 * len(suc_attacked_ids) / len(need_attack_ids), 2) if len(need_attack_ids) else 0}%')
-            print(
+            out_logger(
                 f'The attacked frames: {sg_attack_frames}\tmin: {min(sg_attack_frames.values()) if len(need_attack_ids) else None}\t'
                 f'max: {max(sg_attack_frames.values()) if len(need_attack_ids) else None}\tmean: {sum(sg_attack_frames.values()) / len(sg_attack_frames) if len(need_attack_ids) else None}')
-            print(
+            out_logger(
                 f'The mean L2 distance: {dict(zip(suc_attacked_ids, [sum(l2_distance_sg[k]) / len(l2_distance_sg[k]) for k in suc_attacked_ids])) if len(suc_attacked_ids) else None}')
         raise RuntimeError('Finish')
         statistics = torch.cuda.FloatTensor([inference_time, track_time, n_samples])

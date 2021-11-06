@@ -43,7 +43,7 @@ class MOTDataset(Dataset):
         self._classes = tuple([c["name"] for c in cats])
         self.annotations = self._load_coco_annotations()
         # self.name = name
-        self.name = 'train'
+        self.name = 'test'
         self.img_size = img_size
         self.preproc = preproc
 

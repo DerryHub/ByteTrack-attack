@@ -387,15 +387,12 @@ class BYTETracker(object):
 
         assert attack_i is not None and target_i is not None
         ori_index = []
-        noise_0 = None
-        i_0 = None
-        noise_1 = None
-        i_1 = None
+        att_index = []
         while True:
             i += 1
 
             if i in [1, 10, 20, 30, 40, 45, 50, 55]:
-                att_index = []
+                att_index_new = []
                 attack_det_center = torch.stack([attack_outputs_ind % Ws[attack_i], attack_outputs_ind // Ws[attack_i]]).float().cuda()
                 target_det_center = torch.stack([target_outputs_ind % Ws[target_i], target_outputs_ind // Ws[target_i]]).float().cuda()
                 if attack_det_center_max is None:
@@ -429,7 +426,7 @@ class BYTETracker(object):
                 if last_target_det_center is not None:
                     last_target_det_center_ = last_target_det_center * Ws[0]/W
                     attack_center_delta = attack_det_center_max - last_target_det_center_
-                    if torch.max(torch.abs(attack_center_delta)) >= 2:
+                    if torch.max(torch.abs(attack_center_delta)) > 1:
                         attack_center_delta /= torch.max(torch.abs(attack_center_delta))
                         attack_det_center_max = torch.round(attack_det_center_max - attack_center_delta).int()
                         attack_det_center_mid = torch.round(attack_det_center_max / 2).int()
@@ -439,7 +436,7 @@ class BYTETracker(object):
                                                  + Ws[0] * Hs[0]
                         attack_outputs_ind_min = attack_det_center_min[0] + attack_det_center_min[1] * Ws[2] \
                                                  + Ws[0] * Hs[0] + Ws[1] * Hs[1]
-                        att_index.extend([
+                        att_index_new.extend([
                             attack_outputs_ind_max,
                             attack_outputs_ind_mid,
                             attack_outputs_ind_min
@@ -447,7 +444,7 @@ class BYTETracker(object):
                 if last_attack_det_center is not None:
                     last_attack_det_center_ = last_attack_det_center * Ws[0]/W
                     target_center_delta = target_det_center_max - last_attack_det_center_
-                    if torch.max(torch.abs(target_center_delta)) >= 2:
+                    if torch.max(torch.abs(target_center_delta)) > 1:
                         target_center_delta /= torch.max(torch.abs(target_center_delta))
                         target_det_center_max = torch.round(target_det_center_max - target_center_delta).int()
                         target_det_center_mid = torch.round(target_det_center_max / 2).int()
@@ -457,7 +454,7 @@ class BYTETracker(object):
                                                  + Ws[0] * Hs[0]
                         target_outputs_ind_min = target_det_center_min[0] + target_det_center_min[1] * Ws[2] \
                                                  + Ws[0] * Hs[0] + Ws[1] * Hs[1]
-                        att_index.extend([
+                        att_index_new.extend([
                             target_outputs_ind_max,
                             target_outputs_ind_mid,
                             target_outputs_ind_min
@@ -466,16 +463,17 @@ class BYTETracker(object):
                 if len(ori_index) and isinstance(ori_index, list):
                     ori_index_re = torch.stack(ori_index[3:] + ori_index[:3]).type(torch.int64)
                     ori_index = torch.stack(ori_index).type(torch.int64)
-                if len(att_index):
-                    att_index = torch.stack(att_index).type(torch.int64)
-                    if len(att_index) == 3:
+                if len(att_index_new):
+                    att_index_new = torch.stack(att_index_new).type(torch.int64)
+                    if len(att_index_new) == 3:
                         if last_target_det_center is None:
                             ori_index_re_ = ori_index_re[3:]
                         else:
                             ori_index_re_ = ori_index_re[:3]
                     else:
                         ori_index_re_ = ori_index_re
-
+                if len(att_index_new):
+                    att_index = att_index_new
             loss_att = 0
             loss_ori = 0
             loss_wh = 0
@@ -511,6 +509,9 @@ class BYTETracker(object):
                 loss_wh += -smoothL1(outputs_wh, reg_wh[n_ori_index_lst])
 
             loss = loss_att + loss_ori + loss_wh * 0.1
+            if isinstance(loss, float):
+                suc = False
+                break
             loss.backward()
             grad = imgs.grad
             grad /= (grad ** 2).sum().sqrt() + 1e-8
