@@ -152,6 +152,7 @@ class MOTEvaluator:
         ori_thresh = self.args.track_thresh
         last_vdo = None
         vdos = 0
+        os.makedirs(self.args.output_dir, exist_ok=True)
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
             self.dataloader
         ):
