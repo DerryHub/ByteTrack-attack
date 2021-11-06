@@ -348,46 +348,46 @@ class MOTEvaluator:
             if is_time_record:
                 infer_end = time_synchronized()
                 inference_time += infer_end - start
-            if self.args.attack == 'single' and self.args.attack_id == -1:
-                for key in sg_track_outputs.keys():
-                    # cv2.imwrite(imgPath.replace('.jpg', f'_{key}.jpg'), sg_track_outputs[key]['adImg'])
-                    # if sg_track_outputs[key]['noise'] is not None:
-                    #     cv2.imwrite(noisePath.replace('.jpg', f'_{key}.jpg'), sg_track_outputs[key]['noise'])
-                    online_tlwhs_att = []
-                    online_ids_att = []
-                    for t in sg_track_outputs[key]['output_stracks_att']:
-                        # tlwh = t.tlwh
-                        tlwh = t.tlbr_to_tlwh(t.curr_tlbr)
-                        tid = t.track_id
-                        vertical = tlwh[2] / tlwh[3] > 1.6
-                        if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
-                            online_tlwhs_att.append(tlwh)
-                            online_ids_att.append(tid)
-                    results_att_sg[key].append((frame_id + 1, online_tlwhs_att, online_ids_att))
-                    sg_track_outputs[key]['online_tlwhs_att'] = online_tlwhs_att
-                    sg_track_outputs[key]['online_ids_att'] = online_ids_att
+            # if self.args.attack == 'single' and self.args.attack_id == -1:
+            #     for key in sg_track_outputs.keys():
+            #         # cv2.imwrite(imgPath.replace('.jpg', f'_{key}.jpg'), sg_track_outputs[key]['adImg'])
+            #         # if sg_track_outputs[key]['noise'] is not None:
+            #         #     cv2.imwrite(noisePath.replace('.jpg', f'_{key}.jpg'), sg_track_outputs[key]['noise'])
+            #         online_tlwhs_att = []
+            #         online_ids_att = []
+            #         for t in sg_track_outputs[key]['output_stracks_att']:
+            #             # tlwh = t.tlwh
+            #             tlwh = t.tlbr_to_tlwh(t.curr_tlbr)
+            #             tid = t.track_id
+            #             vertical = tlwh[2] / tlwh[3] > 1.6
+            #             if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
+            #                 online_tlwhs_att.append(tlwh)
+            #                 online_ids_att.append(tid)
+            #         results_att_sg[key].append((frame_id + 1, online_tlwhs_att, online_ids_att))
+            #         sg_track_outputs[key]['online_tlwhs_att'] = online_tlwhs_att
+            #         sg_track_outputs[key]['online_ids_att'] = online_ids_att
 
-            online_tlwhs = []
-            online_ids = []
-            online_scores = []
-            for t in online_targets:
-                tlwh = t.tlbr_to_tlwh(t.curr_tlbr)
-                tid = t.track_id
-                vertical = tlwh[2] / tlwh[3] > 1.6
-                if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
-                    online_tlwhs.append(tlwh)
-                    online_ids.append(tid)
-                    online_scores.append(t.score)
+            # online_tlwhs = []
+            # online_ids = []
+            # online_scores = []
+            # for t in online_targets:
+            #     tlwh = t.tlbr_to_tlwh(t.curr_tlbr)
+            #     tid = t.track_id
+            #     vertical = tlwh[2] / tlwh[3] > 1.6
+            #     if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
+            #         online_tlwhs.append(tlwh)
+            #         online_ids.append(tid)
+            #         online_scores.append(t.score)
             # save results
-            results.append((frame_id, online_tlwhs, online_ids, online_scores))
+            # results.append((frame_id, online_tlwhs, online_ids, online_scores))
 
             if is_time_record:
                 track_end = time_synchronized()
                 track_time += track_end - infer_end
             
-            if cur_iter == len(self.dataloader) - 1:
-                result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
-                write_results(result_filename, results)
+            # if cur_iter == len(self.dataloader) - 1:
+            #     result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
+            #     write_results(result_filename, results)
             # if self.args.attack == 'single' and self.args.attack_id == -1:
             #     for key in sg_track_outputs.keys():
             #         img0 = sg_track_outputs[key]['adImg'].astype(np.uint8)
