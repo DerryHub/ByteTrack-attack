@@ -239,6 +239,7 @@ class BYTETracker(object):
             convert_to_coco_format,
             frame_rate=30,
             model=None,
+            model2=None,
             decoder=None,
             tracked_stracks=[],
             lost_stracks=[],
@@ -247,7 +248,7 @@ class BYTETracker(object):
             ad_last_info={}
     ):
         self.model = model
-        self.model_2 = copy.deepcopy(model)
+        self.model_2 = model2 if model2 is not None else copy.deepcopy(model)
         self.decoder = decoder
         self.num_classes = num_classes
         self.confthre = confthre

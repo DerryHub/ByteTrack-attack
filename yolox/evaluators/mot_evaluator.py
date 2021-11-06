@@ -153,6 +153,7 @@ class MOTEvaluator:
         last_vdo = None
         vdos = 0
         os.makedirs(self.args.output_dir, exist_ok=True)
+        model2 = copy.deepcopy(model)
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
             self.dataloader
         ):
@@ -288,6 +289,7 @@ class MOTEvaluator:
                             self.nmsthre,
                             self.convert_to_coco_format,
                             model=model,
+                            model2=model2,
                             decoder=decoder,
                             tracked_stracks=tracked_stracks,
                             lost_stracks=lost_stracks,
