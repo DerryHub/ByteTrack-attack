@@ -573,9 +573,9 @@ class BYTETracker(object):
         inp_width = imgs.shape[3]
 
         imgs.requires_grad = True
-        self.model.zero_grad()
+        self.model_2.zero_grad()
 
-        outputs = self.model(imgs)
+        outputs = self.model_2(imgs)
         if self.decoder is not None:
             outputs = self.decoder(outputs, dtype=outputs.type())
 
@@ -943,8 +943,8 @@ class BYTETracker(object):
         removed_stracks = []
 
         imgs.requires_grad = True
-        self.model.zero_grad()
-        outputs = self.model(imgs)
+        self.model_2.zero_grad()
+        outputs = self.model_2(imgs)
 
         if self.decoder is not None:
             outputs = self.decoder(outputs, dtype=outputs.type())
