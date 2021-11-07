@@ -481,22 +481,22 @@ class BYTETracker(object):
             if len(att_index):
                 n_att_index_lst = []
                 n_ori_index_lst = []
+                max_size = len(outputs) - 1
                 for hm_ind in range(len(att_index) // 3):
                     for n_i in range(3):
                         for n_j in range(3):
                             att_hm_ind = att_index[hm_ind * 3].item()
                             att_hm_ind = att_hm_ind + (n_i - 1) * Ws[0] + (n_j - 1)
                             att_hm_ind = max(0, min(Hs[0]*Ws[0]-1, att_hm_ind))
-                            n_att_index_lst.append(att_hm_ind)
+                            n_att_index_lst.append(max(0, min(max_size, att_hm_ind)))
                             ori_hm_ind = ori_index_re_[hm_ind * 3].item()
                             ori_hm_ind = ori_hm_ind + (n_i - 1) * Ws[0] + (n_j - 1)
                             ori_hm_ind = max(0, min(Hs[0]*Ws[0]-1, ori_hm_ind))
-                            n_ori_index_lst.append(ori_hm_ind)
-                    n_att_index_lst.append(att_index[hm_ind * 3 + 1].item())
-                    n_att_index_lst.append(att_index[hm_ind * 3 + 2].item())
-                    n_ori_index_lst.append(ori_index_re_[hm_ind * 3 + 1].item())
-                    n_ori_index_lst.append(ori_index_re_[hm_ind * 3 + 2].item())
-
+                            n_ori_index_lst.append(max(0, min(max_size, ori_hm_ind)))
+                    n_att_index_lst.append(max(0, min(max_size, att_index[hm_ind * 3 + 1].item())))
+                    n_att_index_lst.append(max(0, min(max_size, att_index[hm_ind * 3 + 2].item())))
+                    n_ori_index_lst.append(max(0, min(max_size, ori_index_re_[hm_ind * 3 + 1].item())))
+                    n_ori_index_lst.append(max(0, min(max_size, ori_index_re_[hm_ind * 3 + 2].item())))
                 loss_att += ((1 - outputs[:, -1][n_att_index_lst]) ** 2 *
                          torch.log(torch.clip(outputs[:, -1][n_att_index_lst], min=1e-4, max=1 - 1e-4))).mean()
                 loss_att += ((1 - outputs[:, -2][n_att_index_lst]) ** 2 *
