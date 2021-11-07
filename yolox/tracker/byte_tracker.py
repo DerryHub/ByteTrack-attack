@@ -1100,9 +1100,9 @@ class BYTETracker(object):
                                  np.ascontiguousarray(dets_all[:, :4], dtype=np.float64))
 
                 ious[range(len(ious)), range(len(ious))] = 0
-                dis = bbox_dis(np.ascontiguousarray(dets[:, :4], dtype=np.float64),
-                               np.ascontiguousarray(dets[:, :4], dtype=np.float64))
-                dis[range(len(dets)), range(len(dets))] = np.inf
+                dis = bbox_dis(np.ascontiguousarray(dets_all[:, :4], dtype=np.float64),
+                               np.ascontiguousarray(dets_all[:, :4], dtype=np.float64))
+                dis[range(len(dis)), range(len(dis))] = np.inf
                 target_ind = np.argmax(ious[attack_ind])
                 if ious[attack_ind][target_ind] >= self.attack_iou_thr:
                     if ious[attack_ind][target_ind] == 0:
