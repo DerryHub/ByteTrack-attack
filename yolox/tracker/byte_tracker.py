@@ -310,6 +310,48 @@ class BYTETracker(object):
         output = F.grid_sample(tensor, grid=grid, mode='bilinear', align_corners=True)
         return output
 
+    def ifgsm_adam_sg_random(
+            self,
+            imgs,
+            img_info,
+            dets,
+            dets_second,
+            outputs_index_1,
+            outputs_index_2,
+            last_info,
+            outputs_ori,
+            attack_id,
+            attack_ind,
+            target_id,
+            target_ind
+    ):
+        suc = False
+
+        noise = torch.rand(imgs.size()).to(imgs.device)
+        noise /= (noise ** 2).sum().sqrt()
+        noise *= random.uniform(2, 8)
+
+        imgs = (imgs + noise)
+        imgs[0, 0] = torch.clip(imgs[0, 0], min=-0.485 / 0.229, max=(1 - 0.485) / 0.229)
+        imgs[0, 1] = torch.clip(imgs[0, 1], min=-0.456 / 0.224, max=(1 - 0.456) / 0.224)
+        imgs[0, 2] = torch.clip(imgs[0, 2], min=-0.406 / 0.225, max=(1 - 0.406) / 0.225)
+        imgs = imgs.data
+        outputs, ae_attack_id, ae_target_id, _ = self.forwardFeatureSg(
+            imgs,
+            img_info,
+            dets,
+            dets_second,
+            attack_id,
+            attack_ind,
+            target_id,
+            target_ind,
+            last_info
+        )
+        if ae_attack_id != attack_id and ae_attack_id is not None:
+            suc = True
+
+        return noise, 1, suc
+
     def ifgsm_adam_sg(
             self,
             imgs,
@@ -537,20 +579,8 @@ class BYTETracker(object):
             )
             if ae_attack_id != attack_id and ae_attack_id is not None:
                 break
-                # if ae_attack_id == target_id and ae_target_id == attack_id:
-                #     break
-                # elif ae_attack_id == target_id or ae_target_id == attack_id:
-                #     noise_0 = noise.clone()
-                #     i_0 = i
-                # else:
-                #     noise_1 = noise.clone()
-                #     i_1 = i
 
             if i > 60:
-                # if noise_0 is not None:
-                #     return noise_0, i_0, suc
-                # elif noise_1 is not None:
-                #     return noise_1, i_1, suc
                 suc = False
                 break
         return noise, i, suc
@@ -1109,20 +1139,36 @@ class BYTETracker(object):
                         target_ind = np.argmin(dis[attack_ind])
                     target_id = dets_ids[target_ind]
                     if fit:
-                        noise, attack_iter, suc = self.ifgsm_adam_sg(
-                            imgs,
-                            img_info,
-                            dets,
-                            dets_second,
-                            outputs_index_1,
-                            outputs_index_2,
-                            last_info=self.ad_last_info,
-                            outputs_ori=outputs,
-                            attack_id=attack_id,
-                            attack_ind=attack_ind,
-                            target_id=target_id,
-                            target_ind=target_ind
-                        )
+                        if self.args.rand:
+                            noise, attack_iter, suc = self.ifgsm_adam_sg_random(
+                                imgs,
+                                img_info,
+                                dets,
+                                dets_second,
+                                outputs_index_1,
+                                outputs_index_2,
+                                last_info=self.ad_last_info,
+                                outputs_ori=outputs,
+                                attack_id=attack_id,
+                                attack_ind=attack_ind,
+                                target_id=target_id,
+                                target_ind=target_ind
+                            )
+                        else:
+                            noise, attack_iter, suc = self.ifgsm_adam_sg(
+                                imgs,
+                                img_info,
+                                dets,
+                                dets_second,
+                                outputs_index_1,
+                                outputs_index_2,
+                                last_info=self.ad_last_info,
+                                outputs_ori=outputs,
+                                attack_id=attack_id,
+                                attack_ind=attack_ind,
+                                target_id=target_id,
+                                target_ind=target_ind
+                            )
                         self.attack_iou_thr = 0
                         if suc:
                             suc = 1

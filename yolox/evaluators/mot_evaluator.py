@@ -220,6 +220,7 @@ class MOTEvaluator:
                 need_attack_ids = set([])
                 suc_attacked_ids = set([])
                 frequency_ids = {}
+                att_frequency_ids = {}
                 trackers_dic = {}
                 suc_frequency_ids = {}
 
@@ -260,27 +261,45 @@ class MOTEvaluator:
                 online_targets = tracker.update(imgs, info_imgs, self.img_size, data_list, ids, track_id=track_id)
                 dets = []
                 ids_single = []
-
                 for strack in online_targets:
                     if strack.track_id not in frequency_ids:
                         frequency_ids[strack.track_id] = 0
                     frequency_ids[strack.track_id] += 1
-                    if frequency_ids[strack.track_id] > tracker.FRAME_THR:
-                        ids_single.append(strack.track_id)
-                        dets.append(strack.curr_tlbr.reshape(1, -1))
+                    ids_single.append(strack.track_id)
+                    dets.append(strack.curr_tlbr.reshape(1, -1))
                 if len(ids_single) > 0:
                     dets = np.concatenate(dets).astype(np.float64)
                     ious = bbox_ious(dets, dets)
-
                     ious[range(len(dets)), range(len(dets))] = 0
                     for i in range(len(dets)):
-                        for j in range(len(dets)):
-                            if ious[i, j] > tracker.ATTACK_IOU_THR:
-                                need_attack_ids.add(ids_single[i])
+                        if (ious[i] > tracker.ATTACK_IOU_THR).sum() > 0 and frequency_ids[ids[i]] > tracker.FRAME_THR:
+                            need_attack_ids.add(ids_single[i])
+                # for strack in online_targets:
+                #     if strack.track_id not in frequency_ids:
+                #         frequency_ids[strack.track_id] = 0
+                #     frequency_ids[strack.track_id] += 1
+                #     if frequency_ids[strack.track_id] > tracker.FRAME_THR:
+                #         ids_single.append(strack.track_id)
+                #         dets.append(strack.curr_tlbr.reshape(1, -1))
+                # if len(ids_single) > 0:
+                #     dets = np.concatenate(dets).astype(np.float64)
+                #     ious = bbox_ious(dets, dets)
+                #
+                #     ious[range(len(dets)), range(len(dets))] = 0
+                #     for i in range(len(dets)):
+                #         for j in range(len(dets)):
+                #             if ious[i, j] > tracker.ATTACK_IOU_THR:
+                #                 need_attack_ids.add(ids_single[i])
 
                 for attack_id in need_attack_ids:
                     if attack_id in suc_attacked_ids:
                         continue
+                    if self.args.rand:
+                        if attack_id not in att_frequency_ids:
+                            att_frequency_ids[attack_id] = 0
+                        att_frequency_ids[attack_id] += 1
+                        if att_frequency_ids[attack_id] > 30:
+                            continue
                     if attack_id not in trackers_dic:
                         trackers_dic[attack_id] = BYTETracker(
                             self.args,
