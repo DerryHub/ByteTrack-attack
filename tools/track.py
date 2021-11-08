@@ -111,6 +111,7 @@ def make_parser():
     parser.add_argument("--attack", type=str, default='single')
     parser.add_argument("--img_dir", default='datasets/mot/test')
     parser.add_argument("--attack_id", type=int, default=-1)
+    parser.add_argument("--output_dir", required=True)
     parser.add_argument("--rand", action="store_true")
     return parser
 
