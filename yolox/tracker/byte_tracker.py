@@ -330,6 +330,7 @@ class BYTETracker(object):
         noise = torch.rand(imgs.size()).to(imgs.device)
         noise /= (noise ** 2).sum().sqrt()
         noise *= random.uniform(2, 8)
+        noise = noise.type(torch.HalfTensor).to(imgs.device)
 
         imgs = (imgs + noise)
         imgs[0, 0] = torch.clip(imgs[0, 0], min=-0.485 / 0.229, max=(1 - 0.485) / 0.229)
