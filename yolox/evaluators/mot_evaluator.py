@@ -431,7 +431,7 @@ class MOTEvaluator:
                 f'The attacked frames: {sg_attack_frames}\tmin: {min(sg_attack_frames.values()) if len(need_attack_ids) else None}\t'
                 f'max: {max(sg_attack_frames.values()) if len(need_attack_ids) else None}\tmean: {sum(sg_attack_frames.values()) / len(sg_attack_frames) if len(need_attack_ids) else None}')
             out_logger(
-                f'The mean L2 distance: {dict(zip(suc_attacked_ids, [sum(l2_distance_sg[k]) / len(l2_distance_sg[k]) for k in suc_attacked_ids])) if len(suc_attacked_ids) else None}')
+                f'The mean L2 distance: {dict(zip(suc_attacked_ids, [sum(l2_distance_sg[k]) / (len(l2_distance_sg[k]) if len(l2_distance_sg[k]) else 1e-8) for k in suc_attacked_ids])) if len(suc_attacked_ids) else None}')
         raise RuntimeError('Finish')
         statistics = torch.cuda.FloatTensor([inference_time, track_time, n_samples])
         if distributed:
