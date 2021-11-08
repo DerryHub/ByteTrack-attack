@@ -272,7 +272,7 @@ class MOTEvaluator:
                     ious = bbox_ious(dets, dets)
                     ious[range(len(dets)), range(len(dets))] = 0
                     for i in range(len(dets)):
-                        if (ious[i] > tracker.ATTACK_IOU_THR).sum() > 0 and frequency_ids[ids[i]] > tracker.FRAME_THR:
+                        if (ious[i] > tracker.ATTACK_IOU_THR).sum() > 0 and frequency_ids[ids_single[i]] > tracker.FRAME_THR:
                             need_attack_ids.add(ids_single[i])
                 # for strack in online_targets:
                 #     if strack.track_id not in frequency_ids:
