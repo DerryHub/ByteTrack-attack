@@ -652,12 +652,20 @@ class BYTETracker(object):
         # if ious[0, det_ind[0]] < 0.6 or ious[1, det_ind[1]] < 0.6:
         #     return outputs, ae_attack_id, ae_target_id, None
 
-        if row_inds[0] == 0:
-            ae_attack_ind = col_inds[0]
-            ae_target_ind = col_inds[1]
+        ae_attack_ind = None
+        ae_target_ind = None
+        if len(col_inds) >= 2:
+            if row_inds[0] == 0:
+                ae_attack_ind = col_inds[0]
+                ae_target_ind = col_inds[1]
+            else:
+                ae_attack_ind = col_inds[1]
+                ae_target_ind = col_inds[0]
         else:
-            ae_attack_ind = col_inds[1]
-            ae_target_ind = col_inds[0]
+            if row_inds[0] == 0:
+                ae_attack_ind = col_inds[0]
+            else:
+                ae_target_ind = col_inds[0]
 
         # hm_index[[attack_ind, target_ind]] = hm_index[[ae_attack_ind, ae_target_ind]]
 
