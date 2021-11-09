@@ -210,6 +210,7 @@ class MOTEvaluator:
                         f'max: {max(sg_attack_frames.values()) if len(need_attack_ids) else None}\tmean: {sum(sg_attack_frames.values()) / len(sg_attack_frames) if len(need_attack_ids) else None}')
                     out_logger(
                         f'The mean L2 distance: {dict(zip(suc_attacked_ids, [sum(l2_distance_sg[k]) / max(1e-8, len(l2_distance_sg[k])) for k in suc_attacked_ids])) if len(suc_attacked_ids) else None}')
+                    file.close()
                 last_vdo = video_name
                 tracker = BYTETracker(self.args, self.num_classes, self.confthre, self.nmsthre, self.convert_to_coco_format, model=model, decoder=decoder)
                 if len(results) != 0:
@@ -451,6 +452,7 @@ class MOTEvaluator:
                 f'max: {max(sg_attack_frames.values()) if len(need_attack_ids) else None}\tmean: {sum(sg_attack_frames.values()) / len(sg_attack_frames) if len(need_attack_ids) else None}')
             out_logger(
                 f'The mean L2 distance: {dict(zip(suc_attacked_ids, [sum(l2_distance_sg[k]) / max(1e-8, len(l2_distance_sg[k])) for k in suc_attacked_ids])) if len(suc_attacked_ids) else None}')
+            file.close()
         raise RuntimeError('Finish')
         statistics = torch.cuda.FloatTensor([inference_time, track_time, n_samples])
         if distributed:
