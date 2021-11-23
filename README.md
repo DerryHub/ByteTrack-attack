@@ -7,6 +7,7 @@
 **Related Works**
 
 * [TraSw for FairMOT](https://github.com/DerryHub/FairMOT-attack)
+* [TraSw for JDE](https://github.com/zhou0123/JDE-attack)
 
 ## Abstract
 
