@@ -109,6 +109,7 @@ def make_parser():
     parser.add_argument("--mot20", dest="mot20", default=False, action="store_true", help="test mot20.")
     # attack
     parser.add_argument("--attack", type=str, default='single')
+    parser.add_argument("--method", type=str, default='ids')
     parser.add_argument("--img_dir", default='datasets/MOT20/test')
     parser.add_argument("--attack_id", type=int, default=-1)
     parser.add_argument("--output_dir", required=True)

@@ -7,20 +7,20 @@
 **Related Works**
 
 * [TraSw for FairMOT](https://github.com/DerryHub/FairMOT-attack)
-* [TraSw for JDE](https://github.com/zhou0123/JDE-attack)
 
 ## Abstract
 
-Benefiting from the development of Deep Neural Networks, Multi-Object Tracking (MOT) has achieved aggressive progress. Currently, the real-time Joint-Detection-Tracking (JDT) based MOT trackers gain increasing attention and derive many excellent models. However, the robustness of JDT trackers is rarely studied, and it is challenging to attack the MOT system since its mature association algorithms are designed to be robust against errors during tracking. In this work, we analyze the weakness of JDT trackers and propose a novel adversarial attack method, called Tracklet-Switch (TraSw), against the complete tracking pipeline of MOT. Specifically, a push-pull loss and a center leaping optimization are designed to generate adversarial examples for both re-ID feature and object detection. TraSw can fool the tracker to fail to track the targets in the subsequent frames by attacking very few frames. We evaluate our method on the advanced deep trackers (i.e., FairMOT, JDE, ByteTrack) using the MOT-Challenge datasets (i.e., 2DMOT15, MOT17, and MOT20). Experiments show that TraSw can achieve a high success rate of over 95% by attacking only five frames on average for the single-target attack and a reasonably high success rate of over 80% for the multiple-target attack.
+Multi-Object Tracking (MOT) has achieved aggressive progress and derives many excellent deep learning models. However, the robustness of the trackers is rarely studied, and it is challenging to attack the MOT system since its mature association algorithms are designed to be robust against errors during the tracking. In this work, we analyze the vulnerability of popular pedestrian MOT trackers and propose a novel adversarial attack method called Tracklet-Switch (TraSw) against the complete tracking pipeline of MOT. TraSw can fool the advanced deep trackers (i.e., FairMOT and ByteTrack) to fail to track the targets in the subsequent frames by attacking very few frames. Experiments on the MOT-Challenge datasets (i.e., 2DMOT15, MOT17, and MOT20) show that TraSw can achieve an extraordinarily high success rate of over 95% by attacking only four frames on average. To our knowledge, this is the first work on the adversarial attack against pedestrian MOT trackers. 
 
 ## Attack Performance
 
 **Single-Target Attack Results on MOT challenge test set**
 
-| Dataset | Suc. Rate | Avg. Frames | Avg.  L<sub>2</sub> Distance |
-| :-----: | :-------: | :---------: | :--------------------------: |
-| 2DMOT15 |  91.38%   |    4.45     |             6.48             |
-|  MOT17  |  92.91%   |    4.59     |             5.76             |
+| Dataset | Suc. Rate | Avg. Frames | Total  L<sub>2</sub> Distance |
+| :-----: | :-------: | :---------: | :---------------------------: |
+| 2DMOT15 |  89.88%   |    4.09     |             26.49             |
+|  MOT17  |  91.06%   |    4.17     |             24.02             |
+|  MOT20  |  94.84%   |    3.46     |             19.54             |
 
 ## Installation
 
@@ -80,7 +80,7 @@ pip3 install cython_bbox
 python -m tools.track -f exps/example/mot/yolox_x_mix_det.py -c bytetrack_x_mot17.pth.tar -b 1 -d 1 --fp16 --fuse --img_dir datasets/mot15(mot17) --output_dir ${OUTPUT_DIR}
 ```
 
-## Single-Target Attack
+## Attack
 
 * attack all attackable objects separately in videos in parallel (may require a lot of memory).
 

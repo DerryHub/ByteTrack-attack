@@ -40,10 +40,12 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
 
     output = [None for _ in range(len(prediction))]
     assert len(prediction) == 1
+    zero = False
     for i, image_pred in enumerate(prediction):
 
         # If none are remaining => process next image
         if not image_pred.size(0):
+            zero = True
             continue
         # Get score and class with highest confidence
         class_conf, class_pred = torch.max(
@@ -56,6 +58,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
         detections = torch.cat((image_pred[:, :5], class_conf, class_pred.float()), 1)
         detections = detections[conf_mask]
         if not detections.size(0):
+            zero = True
             continue
 
         nms_out_index = torchvision.ops.batched_nms(
@@ -69,7 +72,8 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
             output[i] = detections
         else:
             output[i] = torch.cat((output[i], detections))
-
+    if zero:
+        return output, torch.zeros(0)
     return output, torch.arange(image_pred.size(0))[conf_mask][nms_out_index]
 
 
