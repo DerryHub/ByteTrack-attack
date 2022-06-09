@@ -31,20 +31,19 @@ Step1. Install ByteTrack.
 ```
 git clone https://github.com/DerryHub/ByteTrack-attack
 cd ByteTrack-attack
-pip3 install -r requirements.txt
-python3 setup.py develop
+pip install -r requirements.txt
 ```
 
 Step2. Install [pycocotools](https://github.com/cocodataset/cocoapi).
 
 ```
-pip3 install cython; pip3 install 'git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI'
+pip install cython; pip3 install 'git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI'
 ```
 
 Step3. Others
 
 ```
-pip3 install cython_bbox
+pip install cython_bbox
 ```
 
 ## Data preparation
